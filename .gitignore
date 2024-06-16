@@ -157,3 +157,9 @@ data/
 
 #experimental notebooks 
 *.ipynb
+
+#notes 
+notes/
+
+#python version 
+.python-version
