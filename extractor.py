@@ -4,6 +4,8 @@ import chess.pgn
 from tqdm import tqdm
 from stockfish import Stockfish
 
+stockfish_client = Stockfish('/usr/bin/stockfish', parameters={"Threads": 1, "Minimum Thinking Time": 50})
+
 def get_unique_boards(pgn_path, game_limit:int=1e5):
     pgn = open(pgn_path, encoding="utf-8")
 
@@ -26,7 +28,6 @@ def get_unique_boards(pgn_path, game_limit:int=1e5):
     return unique_boards
 
 def generate_action_pairs(board_fen, idx):
-    stockfish_client = Stockfish('/usr/bin/stockfish', parameters={"Threads": 2, "Minimum Thinking Time": 50})
 
     with open(f'data/unique_boards/board_{idx}', 'w') as f:
         f.write(f'{board_fen}\n')
