@@ -1,5 +1,5 @@
 '''
-convert FEN to fixed length string of 77 characters (pad with .)
+convert FEN to fixed length string of 76 characters (pad with .)
 ASCII code of each character us one token 
 '''
 
