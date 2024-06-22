@@ -17,7 +17,7 @@ class FenStruct:
     castling_str: str
     ep_str: str
     hc_str: str
-    fc_st: str
+    fc_str: str
 
     @classmethod
     def _get_piece_str(cls, board: chess.Board) -> str:
@@ -40,7 +40,10 @@ class FenStruct:
 
         turn_str = "w" if board.turn == chess.WHITE else "b"
 
-        castling_str = board.castling_xfen().ljust(4, ".")
+        castling_str = board.castling_xfen()
+        if castling_str == '-':
+            castling_str = ''
+        castling_str = castling_str.ljust(4, ".")
 
         ep_square = board.ep_square 
         ep_str = chess.SQUARE_NAMES[ep_square] if ep_square is not None else "-"
