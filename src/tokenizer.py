@@ -48,3 +48,6 @@ def tokenize_from_series(s: pd.Series):
         s['hc_str'],
         s['fc_str']
     )
+
+def tokenize_from_struct(fen): 
+    return tokenize(*fen.__dict__.values())
