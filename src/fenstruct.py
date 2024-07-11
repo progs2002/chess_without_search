@@ -8,7 +8,6 @@ import chess
 
 from typing import Self
 
-
 @dataclasses.dataclass(unsafe_hash=True)
 class FenStruct:
     
@@ -60,7 +59,6 @@ class FenStruct:
             fc_str
         )
         
-
 
 if __name__ == "__main__":
     board = chess.Board()

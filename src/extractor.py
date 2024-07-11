@@ -5,6 +5,7 @@ import chess.pgn
 import chess.engine
 
 from fenstruct import FenStruct
+from utils import cp_to_win_percent
 
 from tqdm import tqdm
 
@@ -35,10 +36,10 @@ class Extractor:
             info=chess.engine.INFO_SCORE
         )
 
-        score:chess.engine.Score = info['score'].white()
-
-        return score.score(mate_score=100000)
-
+        score= info['score'].white()
+        score = score.score(mate_score=100000)
+        
+        return cp_to_win_percent(score)
 
     def _parse_board(self, board: chess.Board):
         fen = FenStruct.from_board(board)
@@ -80,7 +81,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("pgn_path", help="add the path to the source pgn")
     parser.add_argument('-o', help="add the path to the output csv")
-    parser.add_argument("-n", help="number of games", type=int)
+    parser.add_argument("-n", help="number of games", type=int, required=True)
     args = parser.parse_args()
 
     extractor = Extractor(args.pgn_path, args.o)
