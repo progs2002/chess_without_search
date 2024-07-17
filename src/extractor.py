@@ -10,11 +10,14 @@ from utils import cp_to_win_percent
 from tqdm import tqdm
 
 import csv
+import pandas as pd
 
 class Extractor:
-    def __init__(self, pgn_path, csv_path):
+    def __init__(self, pgn_path, csv_path, shuffle=True):
         self.pgn_path = pgn_path
         self.csv_path = csv_path
+        self.shuffle = shuffle
+
         self.csv_file = open(self.csv_path,'w')
         self.csv_writer = csv.DictWriter(
             self.csv_file,
@@ -54,6 +57,12 @@ class Extractor:
             fen_dict.update({"score": score})
             self.csv_writer.writerow(fen_dict)
 
+    def _shuffle_csv(self):
+        print(f'Shuffling rows of {self.csv_path}')
+        df = pd.read_csv(self.csv_path, dtype=str)
+        df = df.sample(n=len(df))
+        df.to_csv(self.csv_path, index=False)    
+
     def extract(self, game_limit: int):
         pgn = open(self.pgn_path, encoding="utf-8")
 
@@ -76,6 +85,9 @@ class Extractor:
         
         self.csv_file.close()
         self.engine.quit()
+
+        if self.shuffle:    
+            self._shuffle_csv()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -4,7 +4,9 @@ import numpy as np
 import pandas as pd
 
 from tokenizer import tokenize_from_series
+
 import torch
+import torch.nn.functional as F
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -14,12 +16,19 @@ class ModelConfig:
     BATCH_SIZE: int
 
 def cp_to_win_percent(cp):
-    return 50 + 50 * (2 / (1 + np.exp(-0.00368208 * cp)) - 1)
+    win = 50 + 50 * (2 / (1 + np.exp(-0.00368208 * cp)) - 1)
+
+    #to ensure binning process is fair
+    if win == 100:
+        return 99.9
+    else: 
+        return win
 
 class CustomDataLoader:
-    def __init__(self, file_path:str, batch_size:int=64):
+    def __init__(self, file_path:str, batch_size:int=64, num_bins=128):
         self.file_path = file_path
         self.batch_size = batch_size
+        self.num_bins = num_bins
         
         data_file = open(file_path)
         rows = data_file.readlines()
@@ -38,20 +47,28 @@ class CustomDataLoader:
     def __iter__(self):
         return self
     
+    def _transform_features(self, x):
+        tensors = x.apply(tokenize_from_series, axis=1)
+        return torch.stack(
+            [t for t in tensors]
+        )
+
+    def _transform_labels(self, x):
+        x = x.astype('float')
+        bins = (np.floor(x/100 * self.num_bins)).astype(int).to_numpy()
+
+        return F.one_hot(
+            torch.from_numpy(bins),
+            num_classes=self.num_bins
+        )
+
     def __next__(self):
         X, y = self._get_rows()
 
         if len(X) < self.batch_size:
             raise StopIteration
         else:
-            tensors = X.apply(tokenize_from_series, axis=1)
+            Xb = self._transform_features(X)
+            yb = self._transform_labels(y)
             
-            Xb = torch.stack(
-                [t for t in tensors]
-            )
-
-            yb = torch.from_numpy(
-                y.to_numpy(dtype=int)
-            )
-
         return Xb, yb
