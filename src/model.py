@@ -1,50 +1,33 @@
-import dataclasses
+import torch 
+import torch.nn as nn 
 
-import pandas as pd
+from utils import ModelConfig
 
-from tokenizer import tokenize_from_series
-import torch
+#model v0
+class BasicModel(nn.Model):
+    def __init__(self, num_layers=32, bins=8):
+        super().__init__()
 
-@dataclasses.dataclass()
-class ModelConfig:
-    BATCH_SIZE: int
+        self.num_layers = num_layers
+        self.bins = bins
 
-class CustomDataLoader:
-    def __init__(self, file_path:str, batch_size:int=64):
-        self.file_path = file_path
-        self.batch_size = batch_size
-        
-        data_file = open(file_path)
-        rows = data_file.readlines()
-        self.len = len(rows) - 1
-        data_file.close()
+        self.enc_layer = nn.TransformerEncoderLayer(
+            d_model=75,
+            nhead=5,
+            batch_first=True
+        )
 
-        self.csv_iterator = pd.read_csv(file_path, iterator=True, dtype=str)
+        self.enc = nn.TransformerEncoder(
+            self.enc_layer,
+            self.num_layers
+        )
 
-    def _get_rows(self):
-        df = self.csv_iterator.get_chunk(self.batch_size)
-        return df.drop('score', axis=1), df['score']
+        self.fc = nn.Linear(
+            in_features=75,
+            out_features=self.bins    
+        )
 
-    def __len__(self):
-        return self.len // self.batch_size
-    
-    def __iter__(self):
-        return self
-    
-    def __next__(self):
-        X, y = self._get_rows()
-
-        if len(X) < self.batch_size:
-            raise StopIteration
-        else:
-            tensors = X.apply(tokenize_from_series, axis=1)
-            
-            Xb = torch.stack(
-                [t for t in tensors]
-            )
-
-            yb = torch.from_numpy(
-                y.to_numpy(dtype=int)
-            )
-
-        return Xb, yb
+    def forward(self, x):
+        x = self.enc(x)
+        x = self.fc(x)
+        return x
