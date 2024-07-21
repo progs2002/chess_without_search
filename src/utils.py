@@ -11,10 +11,6 @@ import torch.nn.functional as F
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-@dataclasses.dataclass()
-class ModelConfig:
-    BATCH_SIZE: int
-
 def cp_to_win_percent(cp):
     win = 50 + 50 * (2 / (1 + np.exp(-0.00368208 * cp)) - 1)
 
@@ -25,10 +21,10 @@ def cp_to_win_percent(cp):
         return win
 
 class CustomDataLoader:
-    def __init__(self, file_path:str, batch_size:int=64, num_bins=128):
+    def __init__(self, file_path:str, batch_size:int=64, n_bins=128):
         self.file_path = file_path
         self.batch_size = batch_size
-        self.num_bins = num_bins
+        self.n_bins = n_bins
         
         data_file = open(file_path)
         rows = data_file.readlines()
@@ -55,11 +51,11 @@ class CustomDataLoader:
 
     def _transform_labels(self, x):
         x = x.astype('float')
-        bins = (np.floor(x/100 * self.num_bins)).astype(int).to_numpy()
+        bins = (np.floor(x/100 * self.n_bins)).astype(int).to_numpy()
 
         return F.one_hot(
             torch.from_numpy(bins),
-            num_classes=self.num_bins
+            num_classes=self.n_bins
         )
 
     def __next__(self):
