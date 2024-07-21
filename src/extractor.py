@@ -4,8 +4,8 @@ import chess
 import chess.pgn
 import chess.engine
 
-from fenstruct import FenStruct
-from utils import cp_to_win_percent
+from src.fenstruct import FenStruct
+from src.utils import cp_to_win_percent
 
 from tqdm import tqdm
 

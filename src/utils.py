@@ -3,7 +3,7 @@ import dataclasses
 import numpy as np
 import pandas as pd
 
-from tokenizer import tokenize_from_series
+from src.tokenizer import tokenize_from_series
 
 import torch
 import torch.nn.functional as F

@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.tensorboard.writer import SummaryWriter
 
-from utils import CustomDataLoader
+from src.utils import CustomDataLoader
 
 @dataclasses.dataclass()
 class ModelConfig:
