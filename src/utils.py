@@ -47,7 +47,7 @@ class CustomDataLoader:
         tensors = x.apply(tokenize_from_series, axis=1)
         return torch.stack(
             [t for t in tensors]
-        )
+        ).to(torch.float)
 
     def _transform_labels(self, x):
         x = x.astype('float')
@@ -56,7 +56,7 @@ class CustomDataLoader:
         return F.one_hot(
             torch.from_numpy(bins),
             num_classes=self.n_bins
-        )
+        ).to(torch.float)
 
     def __next__(self):
         X, y = self._get_rows()

@@ -13,7 +13,7 @@ class ModelConfig:
     n_bins: int = 128
 
 #model v0
-class BasicModel(nn.Model):
+class BasicModel(nn.Module):
     def __init__(self, config:ModelConfig):
         super().__init__()
 
@@ -41,7 +41,7 @@ class BasicModel(nn.Model):
         x = self.fc(x)
         return x
 
-@dataclasses.dataclass(hash=False)
+@dataclasses.dataclass()
 class TrainerConfig:
     model_config: ModelConfig
 
@@ -52,7 +52,7 @@ class TrainerConfig:
     cli_log_steps: int = 1000
     log_dir: str = "./runs/"
 
-    lr: float
+    lr: float = 1e-3
 
 class Trainer:
     def __init__(self, config: TrainerConfig):
