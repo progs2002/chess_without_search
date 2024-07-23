@@ -21,7 +21,7 @@ vocab = empty_token + possible_digits + possible_piece_symbols + possible_turn_s
 
 vocab_map = {ch: i for i,ch in enumerate(vocab)}
 
-def tokenize(piece_str, turn_str, castling_str, ep_str, hc_str, fc_str) -> List[int]:
+def tokenize(piece_str, turn_str, castling_str, ep_str) -> List[int]:
     builder: List[int] = []
 
     for ch in piece_str:
@@ -34,9 +34,6 @@ def tokenize(piece_str, turn_str, castling_str, ep_str, hc_str, fc_str) -> List[
 
     builder.append(vocab_map[ep_str])
 
-    for ch in (hc_str + fc_str):
-        builder.append(vocab_map[ch])
-
     return torch.tensor(builder)
 
 def tokenize_from_series(s: pd.Series):
@@ -44,9 +41,7 @@ def tokenize_from_series(s: pd.Series):
         s['piece_str'],
         s['turn_str'],
         s['castling_str'],
-        s['ep_str'],
-        s['hc_str'],
-        s['fc_str']
+        s['ep_str']
     )
 
 def tokenize_from_struct(fen): 
