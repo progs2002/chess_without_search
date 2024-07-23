@@ -41,6 +41,7 @@ class CustomDataLoader:
         return self.len // self.batch_size
     
     def __iter__(self):
+        self.csv_iterator = pd.read_csv(self.file_path, iterator=True, dtype=str)
         return self
     
     def _transform_features(self, x):
