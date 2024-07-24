@@ -14,24 +14,25 @@ class ModelConfig:
 class EmbeddingLayer(nn.Module):
     def __init__(
         self,
-        vocab_size: int,
         model_dim: int,
+        vocab_size: int,
         seq_len:int = 70
     ):
         super().__init__()
 
-        self.vocab_size = vocab_size
-        self.model_dim = model_dim
         self.seq_len = seq_len
 
-        self.token_emb_layer = nn.Embedding(self.vocab_size, self.model_dim)
-        self.pos_emb_layer = nn.Embedding(self.seq_len, self.model_dim)
+        self.token_emb_layer = nn.Embedding(vocab_size, model_dim)
+        self.pos_emb_layer = nn.Embedding(self.seq_len, model_dim)
+
+        self.positions = nn.Parameter(
+            torch.arange(0, self.seq_len),
+            requires_grad=False
+        )
 
     def forward(self, x):
         token_emb = self.token_emb_layer(x)
-        pos_emb = self.pos_emb_layer(
-            torch.arange(0, self.seq_len)
-        )
+        pos_emb = self.pos_emb_layer(self.positions)
 
         return token_emb + pos_emb
 
@@ -43,7 +44,7 @@ class SelfAttention(nn.Module):
         key_dim: int|None = None,
         value_dim: int|None = None, 
         bias: bool = True,
-        dropout = 0.2
+        dropout: float = 0.2
     ):
         super().__init__()
 
@@ -62,8 +63,7 @@ class SelfAttention(nn.Module):
         else:
             self.key_dim = key_dim
 
-        self.dropout = dropout
-        self.dropout_layer = nn.Dropout(self.dropout)
+        self.dropout_layer = nn.Dropout(dropout)
 
         self.query_proj = nn.Linear(
             in_features=self.model_dim,
@@ -111,24 +111,81 @@ class SelfAttention(nn.Module):
 
         return self.dropout_layer(out_fc)
 
+
+class FFN(nn.Module):
+    def __init__(
+        self,
+        model_dim: int,
+        bias: bool = True,
+        dropout: float = 0.2
+    ):
+        super().__init__()
+
+        self.dropout_layer = nn.Dropout(dropout)
+
+        self.fc1 = nn.Linear(model_dim, 4 * model_dim, bias=bias)
+        self.fc2 = nn.Linear(4 * model_dim, model_dim, bias=bias)
+    
+    def forward(self, x):
+        x = self.fc1(x)
+        x = torch.relu(x)
+        x = self.fc2(x)
+
+        return self.dropout_layer(x)
+
+
 class DecoderBlock(nn.Module):
     def __init__(
         self,
-        d_model: int,
+        model_dim: int,
         n_heads: int,
-        T: int
+        key_dim: int|None = None,
+        value_dim: int|None = None, 
+        bias: bool = True,
+        dropout: float = 0.2
     ):
-        pass
+        super().__init__()
 
+        self.l_norm1 = nn.LayerNorm(model_dim)
+        self.self_attention_block = SelfAttention(model_dim, n_heads, key_dim, value_dim, bias, dropout)
+        self.l_norm2 = nn.LayerNorm(model_dim)
+        self.ffn = FFN(model_dim, bias, dropout)
+
+    def forward(self, x):
+        x = self.l_norm1(self.self_attention_block(x) + x)
+        x = self.l_norm2(self.ffn(x) + x)
+
+        return x
+
+class Decoder(nn.Module):
+    def __init__(
+        self,
+        model_dim: int,
+        n_layers: int,
+        n_heads: int,
+        vocab_size: int,
+        seq_len:int = 70,
+        key_dim: int|None = None,
+        value_dim: int|None = None, 
+        bias: bool = True,
+        dropout: float = 0.2
+    ):
+        super().__init__()
+
+        self.emb_layer = EmbeddingLayer(model_dim, vocab_size, seq_len)
         
+        self.decoder_blocks = nn.Sequential(*
+            [
+                DecoderBlock(model_dim, n_heads, key_dim, value_dim, bias, dropout) for _ in range(n_layers)
+            ]
+        )
 
-if __name__ == "__main__":
-    model = EmbeddingLayer(42, 512)
+        self.classification_head = nn.Linear(model_dim, vocab_size, bias)
 
-    from src.utils import CustomDataLoader
-    loader = CustomDataLoader('../data/test.csv')
+    def forward(self, x):
+        x = self.emb_layer(x)
+        x = self.decoder_blocks(x)
+        x = self.classification_head(x[:,-1,:])
 
-    x_test = next(iter(loader))
-    output = model(x_test)
-
-    print(output.shape)
+        return x
+        
