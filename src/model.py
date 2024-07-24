@@ -164,6 +164,7 @@ class Decoder(nn.Module):
         n_layers: int,
         n_heads: int,
         vocab_size: int,
+        n_bins: int = 128,
         seq_len:int = 70,
         key_dim: int|None = None,
         value_dim: int|None = None, 
@@ -180,7 +181,7 @@ class Decoder(nn.Module):
             ]
         )
 
-        self.classification_head = nn.Linear(model_dim, vocab_size, bias)
+        self.classification_head = nn.Linear(model_dim, n_bins, bias)
 
     def forward(self, x):
         x = self.emb_layer(x)
