@@ -166,3 +166,6 @@ notes/
 
 #docs (may be needed later for action value prediction)
 docs/
+
+#train logs
+runs/
