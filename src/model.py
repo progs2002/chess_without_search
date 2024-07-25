@@ -8,25 +8,29 @@ from einops import rearrange
 
 @dataclasses.dataclass()
 class ModelConfig:
+    model_dim: int = 64
     n_layers: int = 32
-    n_bins: int = 128
+    n_heads: int = 4
+    vocab_size: int = 42
+    seq_len: int = 70
+    key_dim: int|None = None
+    value_dim: int|None = None
+    dropout: float = 0
+    bias: bool = True
+    n_bins: int = 32
 
 class EmbeddingLayer(nn.Module):
     def __init__(
         self,
-        model_dim: int,
-        vocab_size: int,
-        seq_len:int = 70
+        config: ModelConfig
     ):
         super().__init__()
 
-        self.seq_len = seq_len
-
-        self.token_emb_layer = nn.Embedding(vocab_size, model_dim)
-        self.pos_emb_layer = nn.Embedding(self.seq_len, model_dim)
+        self.token_emb_layer = nn.Embedding(config.vocab_size, config.model_dim)
+        self.pos_emb_layer = nn.Embedding(config.seq_len, config.model_dim)
 
         self.positions = nn.Parameter(
-            torch.arange(0, self.seq_len),
+            torch.arange(0, config.seq_len),
             requires_grad=False
         )
 
@@ -39,54 +43,48 @@ class EmbeddingLayer(nn.Module):
 class SelfAttention(nn.Module):
     def __init__(
         self,
-        model_dim: int,
-        n_heads: int,
-        key_dim: int|None = None,
-        value_dim: int|None = None, 
-        bias: bool = True,
-        dropout: float = 0.2
+        config: ModelConfig
     ):
         super().__init__()
 
-        self.model_dim = model_dim
-        self.n_heads = n_heads
+        self.n_heads = config.n_heads
 
-        assert model_dim % n_heads == 0
+        assert config.model_dim % config.n_heads == 0
 
-        if value_dim is None:
-            self.value_dim = model_dim // n_heads
+        if config.value_dim is None:
+            self.value_dim = config.model_dim // config.n_heads
         else:
-            self.value_dim = value_dim
+            self.value_dim = config.value_dim
 
-        if key_dim is None:
+        if config.key_dim is None:
             self.key_dim = self.value_dim
         else:
-            self.key_dim = key_dim
+            self.key_dim = config.key_dim
 
-        self.dropout_layer = nn.Dropout(dropout)
+        self.dropout_layer = nn.Dropout(config.dropout)
 
         self.query_proj = nn.Linear(
-            in_features=self.model_dim,
+            in_features=config.model_dim,
             out_features=self.n_heads * self.key_dim,
-            bias=bias
+            bias=config.bias
         )
 
         self.key_proj = nn.Linear(
-            in_features=self.model_dim,
+            in_features=config.model_dim,
             out_features=self.n_heads * self.key_dim,
-            bias=bias
+            bias=config.bias
         )
 
         self.value_proj = nn.Linear(
-            in_features=model_dim,
+            in_features=config.model_dim,
             out_features=self.n_heads * self.value_dim,
-            bias=bias
+            bias=config.bias
         )
 
         self.fc = nn.Linear(
             in_features=self.n_heads * self.value_dim,
-            out_features=self.model_dim,
-            bias=bias
+            out_features=config.model_dim,
+            bias=config.bias
         )
 
     def forward(self, x):
@@ -115,16 +113,14 @@ class SelfAttention(nn.Module):
 class FFN(nn.Module):
     def __init__(
         self,
-        model_dim: int,
-        bias: bool = True,
-        dropout: float = 0.2
+        config: ModelConfig
     ):
         super().__init__()
 
-        self.dropout_layer = nn.Dropout(dropout)
+        self.dropout_layer = nn.Dropout(config.dropout)
 
-        self.fc1 = nn.Linear(model_dim, 4 * model_dim, bias=bias)
-        self.fc2 = nn.Linear(4 * model_dim, model_dim, bias=bias)
+        self.fc1 = nn.Linear(config.model_dim, 4 * config.model_dim, bias=config.bias)
+        self.fc2 = nn.Linear(4 * config.model_dim, config.model_dim, bias=config.bias)
     
     def forward(self, x):
         x = self.fc1(x)
@@ -137,19 +133,15 @@ class FFN(nn.Module):
 class DecoderBlock(nn.Module):
     def __init__(
         self,
-        model_dim: int,
-        n_heads: int,
-        key_dim: int|None = None,
-        value_dim: int|None = None, 
-        bias: bool = True,
-        dropout: float = 0.2
+        config: ModelConfig
     ):
         super().__init__()
 
-        self.l_norm1 = nn.LayerNorm(model_dim)
-        self.self_attention_block = SelfAttention(model_dim, n_heads, key_dim, value_dim, bias, dropout)
-        self.l_norm2 = nn.LayerNorm(model_dim)
-        self.ffn = FFN(model_dim, bias, dropout)
+        self.l_norm1 = nn.LayerNorm(config.model_dim)
+        self.self_attention_block = SelfAttention(config)
+
+        self.l_norm2 = nn.LayerNorm(config.model_dim)
+        self.ffn = FFN(config)
 
     def forward(self, x):
         x = self.l_norm1(self.self_attention_block(x) + x)
@@ -160,28 +152,23 @@ class DecoderBlock(nn.Module):
 class Decoder(nn.Module):
     def __init__(
         self,
-        model_dim: int,
-        n_layers: int,
-        n_heads: int,
-        vocab_size: int,
-        n_bins: int = 128,
-        seq_len:int = 70,
-        key_dim: int|None = None,
-        value_dim: int|None = None, 
-        bias: bool = True,
-        dropout: float = 0.2
+        config: ModelConfig
     ):
         super().__init__()
 
-        self.emb_layer = EmbeddingLayer(model_dim, vocab_size, seq_len)
+        self.emb_layer = EmbeddingLayer(config)
         
         self.decoder_blocks = nn.Sequential(*
             [
-                DecoderBlock(model_dim, n_heads, key_dim, value_dim, bias, dropout) for _ in range(n_layers)
+                DecoderBlock(config) for _ in range(config.n_layers)
             ]
         )
 
-        self.classification_head = nn.Linear(model_dim, n_bins, bias)
+        self.classification_head = nn.Linear(
+            config.model_dim, 
+            config.n_bins, 
+            config.bias
+        )
 
     def forward(self, x):
         x = self.emb_layer(x)
