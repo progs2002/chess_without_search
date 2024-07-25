@@ -63,7 +63,9 @@ class CustomDataLoader:
         X, y = self._get_rows()
 
         if len(X) < self.batch_size:
-            raise StopIteration
+            #raise StopIteration
+            self.__iter__()
+            return self.__next__()
         else:
             Xb = self._transform_features(X)
             yb = self._transform_labels(y)
