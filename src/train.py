@@ -34,6 +34,8 @@ class TrainerConfig:
 
 class Trainer:
     def __init__(self, config: TrainerConfig):
+        self.config = config
+
         self.device = config.device
         self.model = Decoder(config.model_config).to(self.device)
         self.batch_size = config.batch_size
@@ -67,6 +69,19 @@ class Trainer:
             eps=config.eps
         )
 
+    def _get_hparams(self):
+        m_p =self.config.model_config
+        return {
+            "model_dim": m_p.model_dim,
+            "n_layers": m_p.n_layers,
+            "n_heads": m_p.n_heads,
+            "bias": m_p.bias,
+            "lr": self.config.lr,
+            "beta1": self.config.beta1,
+            "beta2": self.config.beta2,
+            "eps": self.config.eps
+        }
+
     def eval(self, steps: int):
         self.model.eval()
         self.val_loader._reset()
@@ -99,6 +114,29 @@ class Trainer:
 
         return loss.item(), norm
     
+    def train_hp(self, steps:int):
+        for step in range(steps):
+            X, y = next(self.train_loader)
+
+            X = X.to(self.device)
+            y = y.to(self.device)
+
+            loss, _ = self._train_step(X, y)
+            self.writer.add_scalar(f'loss/train', loss, step)
+
+
+        acc, eval_loss = self.eval(len(self.val_loader))
+
+        res = {
+            "val_acc": acc,
+            "val_loss": eval_loss
+        }
+
+        self.writer.add_hparams(self._get_hparams(), res)
+
+        return res
+
+
     def train(self, steps: int):
         running_loss = 0.0
         print(f'Training for {steps} steps with a batch size of {self.batch_size}')
@@ -123,5 +161,3 @@ class Trainer:
                 print(f'Val acc: {acc} Val loss: {eval_loss}')
                 self.writer.add_scalar(f'loss/val', eval_loss, step)
                 self.writer.add_scalar(f'acc/val', acc, step)
-
-        self.writer.close()
