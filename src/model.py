@@ -9,7 +9,7 @@ from einops import rearrange
 @dataclasses.dataclass()
 class ModelConfig:
     model_dim: int = 64
-    n_layers: int = 32
+    n_layers: int = 8
     n_heads: int = 4
     vocab_size: int = 42
     seq_len: int = 70
