@@ -21,7 +21,7 @@ def cp_to_win_percent(cp):
         return win
 
 class CustomDataLoader:
-    def __init__(self, file_path:str, batch_size:int=64, n_bins=128):
+    def __init__(self, file_path:str, batch_size:int=64, n_bins=32):
         self.file_path = file_path
         self.batch_size = batch_size
         self.n_bins = n_bins
@@ -34,14 +34,20 @@ class CustomDataLoader:
         self.csv_iterator = pd.read_csv(file_path, iterator=True, dtype=str)
 
     def _get_rows(self):
-        df = self.csv_iterator.get_chunk(self.batch_size)
-        return df.drop('score', axis=1), df['score']
+        try:
+            df = self.csv_iterator.get_chunk(self.batch_size)
+            return df.drop('score', axis=1), df['score']
+        except StopIteration:
+            self._reset()
+            return self._get_rows()
 
     def __len__(self):
         return self.len // self.batch_size
-    
-    def __iter__(self):
+
+    def _reset(self):
         self.csv_iterator = pd.read_csv(self.file_path, iterator=True, dtype=str)
+
+    def __iter__(self):
         return self
     
     def _transform_features(self, x):
@@ -61,13 +67,6 @@ class CustomDataLoader:
 
     def __next__(self):
         X, y = self._get_rows()
-
-        if len(X) < self.batch_size:
-            #raise StopIteration
-            self.__iter__()
-            return self.__next__()
-        else:
-            Xb = self._transform_features(X)
-            yb = self._transform_labels(y)
-            
+        Xb = self._transform_features(X)
+        yb = self._transform_labels(y)
         return Xb, yb
