@@ -2,9 +2,13 @@ import dataclasses
 from src.model import ModelConfig, Decoder
 from src.utils import CustomDataLoader
 
+from typing import Callable
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard.writer import SummaryWriter
 
@@ -25,6 +29,8 @@ class TrainerConfig:
     val_csv_path: str
     log_dir: str = "./runs/"
     cli_log_interval: int = 100
+
+    loss_fn_weight: torch.Tensor|None = None
 
     eval_interval: int = 100
     eval_steps: int = 500
@@ -60,7 +66,7 @@ class Trainer:
             n_bins=config.n_bins
         )
 
-        self.loss_fn = nn.CrossEntropyLoss()
+        self.loss_fn = nn.CrossEntropyLoss(weight=config.loss_fn_weight)
 
         self.optimizer = optim.Adam(
             self.model.parameters(),
@@ -68,6 +74,9 @@ class Trainer:
             betas=(config.beta1,config.beta2),
             eps=config.eps
         )
+
+        self.scheduler = ReduceLROnPlateau(self.optimizer)
+
 
     def _get_hparams(self):
         m_p =self.config.model_config
@@ -111,6 +120,7 @@ class Trainer:
 
         norm = clip_grad_norm_(self.model.parameters(), self.grad_clip)
         self.optimizer.step()
+        # self.scheduler.step()
 
         return loss.item(), norm
     
@@ -158,6 +168,7 @@ class Trainer:
             if step%self.eval_interval == self.eval_interval-1:
                 print(f'Calculating evaluation metrics for {self.eval_steps} steps')
                 acc, eval_loss = self.eval(self.eval_steps)
+                self.scheduler.step(eval_loss)
                 print(f'Val acc: {acc} Val loss: {eval_loss}')
                 self.writer.add_scalar(f'loss/val', eval_loss, step)
                 self.writer.add_scalar(f'acc/val', acc, step)
