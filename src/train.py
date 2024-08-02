@@ -38,6 +38,9 @@ class TrainerConfig:
     def __post_init__(self):
         self.n_bins = self.model_config.n_bins
 
+        if self.loss_fn_weight is not None:
+            self.loss_fn_weight = self.loss_fn_weight.to(self.device)
+
 class Trainer:
     def __init__(self, config: TrainerConfig):
         self.config = config
@@ -66,7 +69,9 @@ class Trainer:
             n_bins=config.n_bins
         )
 
-        self.loss_fn = nn.CrossEntropyLoss(weight=config.loss_fn_weight)
+        self.loss_fn = nn.CrossEntropyLoss(
+            weight=config.loss_fn_weight
+        )
 
         self.optimizer = optim.Adam(
             self.model.parameters(),
@@ -95,18 +100,21 @@ class Trainer:
         self.model.eval()
         self.val_loader._reset()
         total_correct = 0.0
+        running_loss = 0.0
 
         with torch.no_grad():
             for step in range(steps):
                 X, y = next(self.val_loader)
                 X, y = X.to(self.device), y.to(self.device)
                 logits = self.model(X)
-                loss = self.loss_fn(logits,y).item()
-                correct = (logits.max(-1)[1] == y.max(1)[1]).sum().item()
+                loss = self.loss_fn(logits[:,-1], y).item()
+                running_loss += loss
+
+                correct = (logits[:,-1].max(-1)[1] == y.max(1)[1]).sum().item()
                 total_correct += correct
 
         acc = total_correct/(steps * self.batch_size)
-        loss = loss/steps
+        loss = running_loss/steps
 
         return acc, loss
 
@@ -115,7 +123,7 @@ class Trainer:
         self.optimizer.zero_grad()
 
         out = self.model(X)
-        loss = self.loss_fn(out, y)
+        loss = self.loss_fn(out[:,-1], y)
         loss.backward()
 
         norm = clip_grad_norm_(self.model.parameters(), self.grad_clip)
@@ -168,7 +176,7 @@ class Trainer:
             if step%self.eval_interval == self.eval_interval-1:
                 print(f'Calculating evaluation metrics for {self.eval_steps} steps')
                 acc, eval_loss = self.eval(self.eval_steps)
-                self.scheduler.step(eval_loss)
+                #self.scheduler.step(eval_loss)
                 print(f'Val acc: {acc} Val loss: {eval_loss}')
                 self.writer.add_scalar(f'loss/val', eval_loss, step)
                 self.writer.add_scalar(f'acc/val', acc, step)

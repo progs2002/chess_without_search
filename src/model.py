@@ -104,9 +104,9 @@ class SelfAttention(nn.Module):
         keys = self.key_proj(x)
         values = self.value_proj(x)
 
-        queries = rearrange(queries, 'b c (h k) -> b c h k', h=self.n_heads)
-        keys = rearrange(keys, 'b c (h k) -> b c h k', h=self.n_heads)
-        values = rearrange(values, 'b c (h v) -> b c h v', h=self.n_heads)
+        queries = rearrange(queries, 'b c (h k) -> b h c k', h=self.n_heads)
+        keys = rearrange(keys, 'b c (h k) -> b h c k', h=self.n_heads)
+        values = rearrange(values, 'b c (h v) -> b h c v', h=self.n_heads)
 
         attention = F.softmax(
             (queries @ torch.transpose(keys, -1,-2)) / math.sqrt(self.key_dim),
@@ -115,7 +115,7 @@ class SelfAttention(nn.Module):
 
         out = attention @ values
 
-        out_concat = rearrange(out, 'b c h v -> b c (h v)')
+        out_concat = rearrange(out, 'b h c v -> b c (h v)')
 
         out_fc = self.fc(out_concat)
 
@@ -133,10 +133,12 @@ class FFN(nn.Module):
 
         self.fc_expand = nn.Linear(config.model_dim, 4 * config.model_dim, bias=config.bias)
         self.fc = nn.Linear(4 * config.model_dim, config.model_dim, bias=config.bias)
+
+        self.silu = nn.SiLU()
     
     def forward(self, x):
         x = self.fc_expand(x)
-        x = torch.relu(x)
+        x = self.silu(x)
         x = self.fc(x)
 
         return self.dropout_layer(x)

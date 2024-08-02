@@ -60,10 +60,7 @@ class CustomDataLoader:
         x = x.astype('float')
         bins = (np.floor(x/100 * self.n_bins)).astype(int).to_numpy()
 
-        return F.one_hot(
-            torch.from_numpy(bins),
-            num_classes=self.n_bins
-        ).to(torch.float)
+        return torch.from_numpy(bins)
 
     def __next__(self):
         X, y = self._get_rows()

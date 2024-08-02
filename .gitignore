@@ -168,4 +168,7 @@ notes/
 docs/
 
 #train logs
-runs/
+logs/
+
+#weights
+weights/
