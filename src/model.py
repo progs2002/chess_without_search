@@ -6,29 +6,20 @@ import torch
 import torch.nn as nn 
 import torch.nn.functional as F
 
-from einops import rearrange
+from einops import rearrange, einsum
 
 @dataclasses.dataclass()
 class ModelConfig:
-    model_dim: int = 64
+    model_dim: int = 128
     n_layers: int = 8
     n_heads: int = 4
-    vocab_size: int = 42
-    seq_len: int = 70
+    vocab_size: int = 31
+    seq_len: int = 77
     key_dim: int|None = None
     value_dim: int|None = None
     dropout: float = 0
     bias: bool = True
     n_bins: int = 32
-
-class LayerNorm(nn.Module):
-    def __init__(self, ndim, bias):
-        super().__init__()
-        self.weight = nn.Parameter(torch.ones(ndim))
-        self.bias = nn.Parameter(torch.zeros(ndim)) if bias else None
-
-    def forward(self, input):
-        return F.layer_norm(input, self.weight.shape, self.weight, self.bias, 1e-5)
 
 class EmbeddingLayer(nn.Module):
     def __init__(
@@ -100,22 +91,27 @@ class SelfAttention(nn.Module):
 
 
     def forward(self, x):
-        queries = self.query_proj(x)
-        keys = self.key_proj(x)
-        values = self.value_proj(x)
+        queries = self.query_proj(x) #B T HK
+        keys = self.key_proj(x) #B T HK
+        values = self.value_proj(x) #B T HV
 
-        queries = rearrange(queries, 'b c (h k) -> b h c k', h=self.n_heads)
-        keys = rearrange(keys, 'b c (h k) -> b h c k', h=self.n_heads)
-        values = rearrange(values, 'b c (h v) -> b h c v', h=self.n_heads)
+        queries = rearrange(queries, 'b c (h k) -> b c h k', h=self.n_heads)
+        keys = rearrange(keys, 'b c (h k) -> b c h k', h=self.n_heads)
+        values = rearrange(values, 'b c (h v) -> b c h v', h=self.n_heads)
 
         attention = F.softmax(
-            (queries @ torch.transpose(keys, -1,-2)) / math.sqrt(self.key_dim),
-            dim = -1
+            einsum(queries, keys, 'b c1 h k, b c2 h k -> b h c1 c2')/math.sqrt(self.n_heads * self.key_dim),
+            dim = -1 
         )
 
-        out = attention @ values
+        # attention = F.softmax(
+        #     (queries @ torch.transpose(keys, -1,-2)) / math.sqrt(self.n_heads * self.key_dim),
+        #     dim = -1
+        # )
 
-        out_concat = rearrange(out, 'b h c v -> b c (h v)')
+        out = einsum(attention, values, 'b h c1 c2, b c2 h v -> b c1 h v')
+
+        out_concat = rearrange(out, 'b c h v -> b c (h v)')
 
         out_fc = self.fc(out_concat)
 
@@ -131,16 +127,16 @@ class FFN(nn.Module):
 
         self.dropout_layer = nn.Dropout(config.dropout)
 
-        self.fc_expand = nn.Linear(config.model_dim, 4 * config.model_dim, bias=config.bias)
-        self.fc = nn.Linear(4 * config.model_dim, config.model_dim, bias=config.bias)
+        self.fc1 = nn.Linear(config.model_dim, 4 * config.model_dim, bias=config.bias)
+        self.fc2 = nn.Linear(config.model_dim, 4 * config.model_dim, bias=config.bias)
+
+        self.final = nn.Linear(4 * config.model_dim, config.model_dim, bias=config.bias)
 
         self.silu = nn.SiLU()
     
     def forward(self, x):
-        x = self.fc_expand(x)
-        x = self.silu(x)
-        x = self.fc(x)
-
+        x = self.silu(self.fc1(x)) * self.fc2(x)
+        x = self.final(x)
         return self.dropout_layer(x)
 
 
@@ -151,10 +147,10 @@ class DecoderBlock(nn.Module):
     ):
         super().__init__()
 
-        self.l_norm1 = LayerNorm(config.model_dim, bias=config.bias)
+        self.l_norm1 = nn.LayerNorm(config.model_dim)
         self.self_attention_block = SelfAttention(config)
 
-        self.l_norm2 = LayerNorm(config.model_dim, bias=config.bias)
+        self.l_norm2 = nn.LayerNorm(config.model_dim)
         self.ffn = FFN(config)
 
     def forward(self, x):
@@ -170,6 +166,8 @@ class Decoder(nn.Module):
     ):
         super().__init__()
 
+        self.config = config
+
         self.emb_layer = EmbeddingLayer(config)
         
         self.decoder_blocks = nn.ModuleList(
@@ -178,12 +176,12 @@ class Decoder(nn.Module):
             ]
         )
 
-        self.post_l_norm = LayerNorm(config.model_dim, config.bias)
+        self.post_l_norm = nn.LayerNorm(config.model_dim)
 
         self.classification_head = nn.Linear(
             config.model_dim, 
             config.n_bins, 
-            config.bias
+            bias=True
         )
 
         self.apply(self._init_weights)
@@ -198,6 +196,9 @@ class Decoder(nn.Module):
                 torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+
+    def _get_hparams(self):
+        return self.config.__dict__
 
     def forward(self, x):
         x = self.emb_layer(x)
