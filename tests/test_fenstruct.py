@@ -12,3 +12,5 @@ def test_fenstruct(board, run):
     assert len(fen.turn_str) == 1
     assert len(fen.castling_str) == 4
     assert len(fen.ep_str) in [1,2]
+    assert len(fen.fc_str) in [1,2,3]
+    assert len(fen.hc_str) in [1,2,3]

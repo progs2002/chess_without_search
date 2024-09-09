@@ -10,4 +10,4 @@ def test_tokenizer(board, run):
 
     print(f'run no: {run}, tokens= {tokens}')
 
-    assert len(tokens) == 70
+    assert len(tokens) == 77
