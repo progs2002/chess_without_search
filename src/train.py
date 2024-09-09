@@ -3,7 +3,7 @@ import dataclasses
 from src.model import ModelConfig, Decoder
 from src.utils import CustomDataLoader
 
-from typing import Self, Tuple
+# from typing import Self, Tuple
 
 import math
 
@@ -109,7 +109,7 @@ class Trainer:
         self.global_step_offset = 0
 
     @classmethod
-    def init_from_checkpoint(cls, checkpoint_path: str) -> Tuple[Self, torch.nn.Module]:
+    def init_from_checkpoint(cls, checkpoint_path: str): #-> Tuple[Self, torch.nn.Module]:
         checkpoint = torch.load(checkpoint_path, weights_only=False)
         model_config = checkpoint["model_config"]
         model_dict = checkpoint["model_dict"]
