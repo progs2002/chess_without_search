@@ -174,9 +174,9 @@ class Trainer:
     def restore_checkpoint(self, checkpoint_path: str):
         checkpoint = torch.load(checkpoint_path, weights_only=False)
         model_config = checkpoint["model_config"]
+        model_dict = checkpoint["model_dict"]
         trainer_config = checkpoint["trainer_config"]
-        model_dict = checkpoint["model_dict"],
-        optimizer_dict = checkpoint["optimizer_dict"],
+        optimizer_dict = checkpoint["optimizer_dict"]
         step = checkpoint["step"]
 
         assert trainer_config == self.config
