@@ -15,6 +15,8 @@ class FenStruct:
     turn_str: str
     castling_str: str
     ep_str: str
+    hc_str: str
+    fc_str: str
 
     @classmethod
     def _get_piece_str(cls, board: chess.Board) -> str:
@@ -43,13 +45,19 @@ class FenStruct:
         castling_str = castling_str.ljust(4, ".")
 
         ep_square = board.ep_square 
-        ep_str = chess.SQUARE_NAMES[ep_square] if ep_square is not None else "-"
+        # ep_str = chess.SQUARE_NAMES[ep_square] if ep_square is not None else "-"
+        ep_str = chess.SQUARE_NAMES[ep_square] if ep_square is not None else ".."
+        
+        hc_str = str(board.halfmove_clock).ljust(3, ".")
+        fc_str = str(board.fullmove_number).ljust(3, ".")
 
         return cls(
             piece_str,
             turn_str,
             castling_str,
-            ep_str
+            ep_str,
+            hc_str,
+            fc_str
         )
         
 
