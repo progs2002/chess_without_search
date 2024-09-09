@@ -12,19 +12,16 @@ def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 def cp_to_win_percent(cp):
-    win = 50 + 50 * (2 / (1 + np.exp(-0.00368208 * cp)) - 1)
-
-    #to ensure binning process is fair
-    if win == 100:
-        return 99.9
-    else: 
-        return win
+    win = 0.5 + 0.5 * (2 / (1 + np.exp(-0.00368208 * cp)) - 1)
 
 class CustomDataLoader:
     def __init__(self, file_path:str, batch_size:int=64, n_bins=32):
         self.file_path = file_path
         self.batch_size = batch_size
         self.n_bins = n_bins
+
+        temp = np.linspace(0,1,n_bins)
+        self.edges = (temp[1:] + temp[:-1]) / 2
         
         data_file = open(file_path)
         rows = data_file.readlines()
@@ -57,8 +54,8 @@ class CustomDataLoader:
         )
 
     def _transform_labels(self, x):
-        x = x.astype('float')
-        bins = (np.floor(x/100 * self.n_bins)).astype(int).to_numpy()
+        x = x.astype('float') / 100
+        bins = np.searchsorted(self.edges, x, side='left')
 
         return torch.from_numpy(bins)
 
