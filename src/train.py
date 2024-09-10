@@ -29,6 +29,8 @@ class TrainerConfig:
     eps: float = 1e-8
     grad_clip: float = 1.0
 
+    log_lr: bool = False
+
     warmup_iters: int = 1000
     lr_decay_iters: int = 7000
     min_lr: int = 3e-5
@@ -88,6 +90,7 @@ class Trainer:
         )
 
         self.lr = config.lr
+        self.log_lr = config.log_lr
         self.warmup_iters = config.warmup_iters
         self.lr_decay_iters = config.lr_decay_iters
         self.min_lr = config.min_lr
@@ -236,6 +239,9 @@ class Trainer:
 
             new_lr = self._get_lr(step)
             self._update_lr(new_lr)
+
+            if self.log_lr:
+                self.writer.add_scalar('lr', new_lr, step)
 
             loss, norm = self._train_step(X, y)
             self.writer.add_scalar(f'loss/train', loss, step)
