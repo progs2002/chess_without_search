@@ -13,6 +13,7 @@ def count_parameters(model):
 
 def cp_to_win_percent(cp):
     win = 0.5 + 0.5 * (2 / (1 + np.exp(-0.00368208 * cp)) - 1)
+    return win
 
 class CustomDataLoader:
     def __init__(self, file_path:str, batch_size:int=64, n_bins=32):
@@ -54,7 +55,7 @@ class CustomDataLoader:
         )
 
     def _transform_labels(self, x):
-        x = x.astype('float') / 100
+        x = x.astype('float') 
         bins = np.searchsorted(self.edges, x, side='left')
 
         return torch.from_numpy(bins)
