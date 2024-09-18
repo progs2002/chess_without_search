@@ -1,73 +1,78 @@
 import chess
 import torch 
+import torch.nn.functional as F
 
-from typing import List, Dict
+from typing import Tuple, List, Dict
 
 from src.fenstruct import FenStruct
 from src.tokenizer import tokenize_from_struct
 
-#the model
-from src.gpt import GPT, GPTConfig
+from src.model import Decoder, ModelConfig
 
-n_bin = 32
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-config = GPTConfig(
-    block_size=70,
-    vocab_size=42,
-    n_layer=6,
-    n_head=8,
-    n_embd=256,
-    n_bin=n_bin,
-    bias=False
+model_config = ModelConfig(
+    model_dim=256,
+    seq_len=77,
+    n_layers=6,
+    vocab_size=31,
+    n_heads=8,
+    bias=False,
+    dropout=0,
+    n_bins=32
 )
 
-model = GPT(config).to(device)
+class Engine:
+    def __init__(
+        self,
+        weights_path: str,
+        device = 'cuda'
+    ):
+        self.device = device
+        self.model = Decoder(model_config).to(device)
 
-model.load_state_dict(
-    torch.load(
-        'weights/new_model/new_ds_new_model_lrdecay_50000.pt'
-    )
-)
+        self.model.load_state_dict(
+            torch.load(weights_path)
+        )
+        self.model.eval()
 
-model.eval()
+    @classmethod
+    def get_next_legal_board_states(cls, board: chess.Board) -> Tuple[List[chess.Move], List[chess.Board]]:
+        legal_moves = list(board.generate_legal_moves())
+        legal_boards = []
 
-def get_next_legal_board_states(board: chess.Board) -> List[chess.Board]:
-    legal_moves = list(board.generate_legal_moves())
-    legal_boards = []
+        for move in legal_moves:
+            t_board = board.copy()
+            t_board.push(move)
+            legal_boards.append(t_board)
 
-    for move in legal_moves:
-        t_board = board.copy()
-        t_board.push(move)
-        legal_boards.append(t_board)
+        return legal_moves, legal_boards
+    
+    @classmethod
+    def prepare_batch(cls, boards: List[chess.Board]):
+        fens = [FenStruct.from_board(board) for board in boards]
+        tensors = [tokenize_from_struct(fen) for fen in fens]
+        tensors = torch.stack(
+            [t for t in tensors]
+        )
 
-    return legal_moves, legal_boards
+        return tensors
 
-def prepare_batch(boards):
-    fens = [FenStruct.from_board(board) for board in boards]
-    tensors = [tokenize_from_struct(fen) for fen in fens]
-    tensors = torch.stack(
-        [t for t in tensors]
-    )
+    def analyze_board(self, board: chess.Board):
+        legal_moves, legal_boards = Engine.get_next_legal_board_states(board)
+        batch = Engine.prepare_batch(legal_boards).to(self.device)
 
-    return tensors
+        with torch.no_grad():
+            out = self.model(batch)[:, -1]
+        
+        #out_softmaxed = F.softmax(out, -1).to('cpu')
+        out_softmaxed = out.to('cpu')
+        
+        return_obj = [
+           (mv.uci(), scores.numpy()) for mv, scores in zip(legal_moves, out_softmaxed)
+        ]
 
-def get_bins(boards: List[chess.Board]) -> List[float]:
-    batch = prepare_batch(boards).to(device)
-    with torch.no_grad():
-        out = model(batch)[:,-1].max(-1)[1]
+        return return_obj
 
-    return out
-
-bin_scores = (torch.arange(0,n_bin) + torch.arange(1,n_bin+1))/(n_bin*2)
-bin_scores = bin_scores.to(device)
-
-def get_moves(board: chess.Board) -> Dict[chess.Move, float]:
-    moves, boards = get_next_legal_board_states(board)
-    bins = get_bins(boards)
-
-    assert len(bins) == len(moves)
-
-    scores = bin_scores[bins]
-
-    return moves, scores.cpu().numpy()
+    def analyze_fen(self, fen: str):
+        board = chess.Board(fen)
+        return self.analyze_board(board)
