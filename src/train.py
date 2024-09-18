@@ -241,7 +241,7 @@ class Trainer:
             self._update_lr(new_lr)
 
             if self.log_lr:
-                self.writer.add_scalar('lr', new_lr, step)
+                self.writer.add_scalar('lr')
 
             loss, norm = self._train_step(X, y)
             self.writer.add_scalar(f'loss/train', loss, step)
