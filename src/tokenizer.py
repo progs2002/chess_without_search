@@ -33,8 +33,8 @@ def tokenize(piece_str, turn_str, castling_str, ep_str, hc_str, fc_str) -> List[
     for ch in ep_str:
         builder.append(vocab_map[ch])
 
-    for ch in hc_str + fc_str:
-        builder.append(vocab_map[ch])
+    # for ch in hc_str + fc_str:
+    #     builder.append(vocab_map[ch])
 
     return torch.tensor(builder)
 

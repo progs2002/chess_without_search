@@ -14,7 +14,7 @@ class ModelConfig:
     n_layers: int = 8
     n_heads: int = 4
     vocab_size: int = 31
-    seq_len: int = 77
+    seq_len: int = 71
     key_dim: int|None = None
     value_dim: int|None = None
     dropout: float = 0
