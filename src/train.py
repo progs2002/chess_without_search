@@ -18,6 +18,12 @@ from torch.utils.tensorboard.writer import SummaryWriter
 
 @dataclasses.dataclass(kw_only=True)
 class TrainerConfig:
+    train_csv_path: str
+    val_csv_path: str
+
+    checkpoint_dir: str
+    log_dir: str = "./runs/"
+
     device: str = 'cuda'
     
     n_bins: int = 32
@@ -35,9 +41,6 @@ class TrainerConfig:
     lr_decay_iters: int = 7000
     min_lr: int = 3e-5
 
-    train_csv_path: str
-    val_csv_path: str
-    log_dir: str = "./runs/"
     cli_log_interval: int = 100
 
     loss_fn_weight: torch.Tensor|None = None
@@ -45,7 +48,6 @@ class TrainerConfig:
     eval_interval: int = 400
     eval_steps: int = 1200
 
-    checkpoint_dir: str
     checkpoint_interval: int = 10000
 
     def __post_init__(self):
@@ -199,11 +201,11 @@ class Trainer:
             for step in range(steps):
                 X, y = next(self.val_loader)
                 X, y = X.to(self.device), y.to(self.device)
-                logits = self.model(X)
-                loss = self.loss_fn(logits[:,-1], y).item()
+                logits = self.model(X)[:,-1,:]
+                loss = self.loss_fn(logits, y).item()
                 running_loss += loss
 
-                correct = (logits[:,-1].max(-1)[1] == y).sum().item()
+                correct = (logits.max(-1)[1] == y).sum().item()
                 total_correct += correct
 
         acc = total_correct/(steps * self.batch_size)
@@ -215,8 +217,8 @@ class Trainer:
         self.model.train()
         self.optimizer.zero_grad(set_to_none=True)
 
-        out = self.model(X)
-        loss = self.loss_fn(out[:,-1], y)
+        logits = self.model(X)[:,-1,:]
+        loss = self.loss_fn(logits, y)
         loss.backward()
 
         norm = clip_grad_norm_(self.model.parameters(), self.grad_clip)
@@ -241,7 +243,7 @@ class Trainer:
             self._update_lr(new_lr)
 
             if self.log_lr:
-                self.writer.add_scalar('lr', new_lr)
+                self.writer.add_scalar('lr', new_lr, step)
 
             loss, norm = self._train_step(X, y)
             self.writer.add_scalar(f'loss/train', loss, step)
