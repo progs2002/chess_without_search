@@ -35,8 +35,8 @@ class CustomDataLoader:
         try:
             df = self.csv_iterator.get_chunk(self.batch_size)
             df["score"] = df["score"].astype('float')
-            mask = df.turn_str == 'b'
-            df.loc[mask, 'score'] = 1 - df.loc[mask, 'score']
+            # mask = df.turn_str == 'b'
+            # df.loc[mask, 'score'] = 1 - df.loc[mask, 'score']
             return df.drop('score', axis=1), df['score']
         except StopIteration:
             self._reset()
