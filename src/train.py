@@ -15,6 +15,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard.writer import SummaryWriter
 
+import wandb
 
 @dataclasses.dataclass(kw_only=True)
 class TrainerConfig:
@@ -22,7 +23,8 @@ class TrainerConfig:
     val_csv_path: str
 
     checkpoint_dir: str
-    log_dir: str = "./runs/"
+    log_dir: str
+    run_name: str
 
     device: str = 'cuda'
     
@@ -78,7 +80,9 @@ class Trainer:
 
         self.cli_log_interval = config.cli_log_interval
 
-        self.writer = SummaryWriter(config.log_dir)
+        self.writer = SummaryWriter(
+            os.path.join(config.log_dir, config.run_name)
+        )
 
         self.val_loader = CustomDataLoader(
             file_path=config.val_csv_path,
@@ -104,14 +108,21 @@ class Trainer:
             eps=config.eps
         )
 
-        self.checkpoint_dir = config.checkpoint_dir
-        if not os.path.isdir(self.checkpoint_dir):
-            os.makedirs(self.checkpoint_dir)
+        self.checkpoint_path = os.path.join(config.checkpoint_dir,config.run_name)
+        if not os.path.isdir(self.checkpoint_path):
+            os.makedirs(self.checkpoint_path)
 
         self.checkpoint_interval = config.checkpoint_interval
 
         self.scheduler = ReduceLROnPlateau(self.optimizer)
         self.global_step_offset = 0
+
+        wandb.init(
+            project="chess_without_search",
+            name=config.run_name,
+            config=self._get_hparams()
+        )
+
 
     @classmethod
     def init_from_checkpoint(cls, checkpoint_path: str): #-> Tuple[Self, torch.nn.Module]:
@@ -247,6 +258,12 @@ class Trainer:
 
             loss, norm = self._train_step(X, y)
             self.writer.add_scalar(f'loss/train', loss, step)
+            wandb.log(
+                {
+                    "train_loss": loss
+                },
+                step=step
+            )
             running_loss += loss
 
             if step%self.cli_log_interval == self.cli_log_interval-1:
@@ -260,7 +277,15 @@ class Trainer:
                 self.writer.add_scalar(f'loss/val', eval_loss, step)
                 self.writer.add_scalar(f'acc/val', acc, step)
 
+                wandb.log(
+                    {
+                        "val_loss": eval_loss,
+                        "acc": acc
+                    },
+                    step=step
+                )
+
             if step%self.checkpoint_interval == self.checkpoint_interval-1:
-                checkpoint_path = os.path.join(self.checkpoint_dir, f"checkpoint_{step}steps.pt")
+                checkpoint_path = os.path.join(self.checkpoint_path, f"checkpoint_{step}steps.pt")
                 print(f'Saving checkpoint at {step} steps')
                 self.save_checkpoint(step, checkpoint_path)
