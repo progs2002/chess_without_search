@@ -255,8 +255,15 @@ class Trainer:
 
             if self.log_lr:
                 self.writer.add_scalar('lr', new_lr, step)
+                wandb.log(
+                    {
+                        "lr": new_lr
+                    },
+                    step=step
+                )
 
             loss, norm = self._train_step(X, y)
+
             self.writer.add_scalar(f'loss/train', loss, step)
             wandb.log(
                 {
@@ -264,6 +271,7 @@ class Trainer:
                 },
                 step=step
             )
+
             running_loss += loss
 
             if step%self.cli_log_interval == self.cli_log_interval-1:
